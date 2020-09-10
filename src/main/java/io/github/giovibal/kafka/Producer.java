@@ -5,6 +5,7 @@ import io.vertx.core.Vertx;
 import io.vertx.kafka.client.producer.KafkaProducer;
 import io.vertx.kafka.client.producer.KafkaProducerRecord;
 
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -22,8 +23,6 @@ public class Producer extends AbstractVerticle {
 
         Vertx vertx = Vertx.vertx();
         vertx.deployVerticle(producerVerticle);
-
-        System.out.println("Producer started");
     }
 
     public Producer(String kafkaBootstrapServers,
@@ -47,18 +46,25 @@ public class Producer extends AbstractVerticle {
 
         // kafka clients
         kafkaProducer = KafkaProducer.create(vertx, config);
-
+        System.out.println("producer started");
 
         // publish
         try {
             String mqttTopic = "simple/mqtt/topic";
-            byte[] payload = "{\"a\":\"messsage\"}".getBytes("UTF-8");
+            byte[] payload = "{\"a\":\"messsage\"}".getBytes(StandardCharsets.UTF_8);
             Long timestamp = System.currentTimeMillis();
             Integer partition = null;
             KafkaProducerRecord<String, byte[]> record = KafkaProducerRecord.create(kafkaTopic, mqttTopic, payload, timestamp, partition);
             record.addHeader("a_header", UUID.randomUUID().toString());
             kafkaProducer.write(record);
 
+            String val = new String(record.value(), StandardCharsets.UTF_8);
+            System.out.println("message sent: "+ val);
+
+            kafkaProducer.flush(unused -> {
+                System.out.println("message published: "+ val);
+                vertx.close();
+            });
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -69,7 +75,7 @@ public class Producer extends AbstractVerticle {
     public void stop() throws Exception {
         kafkaProducer.close(res -> {
             if (res.succeeded()) {
-                System.out.println("kafka producer is now closed");
+                System.out.println("producer is now closed");
             } else {
                 res.cause().printStackTrace();
             }
